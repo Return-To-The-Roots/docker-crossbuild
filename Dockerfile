@@ -113,7 +113,7 @@ RUN set -x ; \
         done; \
         ln -s gcc /usr/$triple/bin/cc; \
         ln -s /usr/$triple /usr/x86_64-linux-gnu/$triple ; \
-    done
+    done \
     && ln -s /usr/osxcross/tools/osxcross-macports /usr/bin/macports
     
 # we need to use default clang binary to avoid a bug in osxcross that recursively call himself
