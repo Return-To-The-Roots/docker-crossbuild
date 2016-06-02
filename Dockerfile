@@ -44,8 +44,6 @@ RUN set -x ; \
         cmake \
     && apt-get clean
 
-# FIXME: install gcc-multilib
-
 # Install Windows cross-tools
 RUN set -x ; \
     export DEBIAN_FRONTEND=noninteractive \
@@ -53,10 +51,41 @@ RUN set -x ; \
         mingw-w64 \
     && apt-get clean
 
+# install dependencies for return-to-the-roots (linux-x86_64)
+RUN set -x ; \
+    export DEBIAN_FRONTEND=noninteractive \
+    && apt-get install -y -q \
+        g++-4.8 \
+        cmake \
+        libboost1.55-all-dev \
+        libsdl1.2-dev \
+        libsdl-mixer1.2-dev \
+        libcurl4-openssl-dev \
+        libbz2-dev \
+        libminiupnpc-dev \
+        liblua5.2-dev \
+        libboost1.55-all \
+        libsdl1.2debian \
+        libsdl-mixer1.2 \
+        bzip2 \
+        liblua5.2 \
+        ccache \
+    && apt-get clean
+
+# todo: install dependencies for return-to-the-roots (linux-i386)
+# todo: install dependencies for return-to-the-roots (windows)
+
+#        libboost1.55-all:i386 \
+#        libsdl1.2debian:i386 \
+#        libsdl-mixer1.2:i386 \
+#        liblua5.2:i386 \
+#        gcc-multilib \
+#        g++-multilib \
 
 # Install OSX cross-tools
 ENV DARWIN_SDK_VERSION=10.11 \
-    DARWIN_VERSION=15
+    DARWIN_VERSION=15 \
+    MACOSX_DEPLOYMENT_TARGET=10.6
 
 ADD tarballs /tarballs
 
@@ -79,90 +108,65 @@ RUN set -x ; \
         && curl -sLo tarballs/MacOSX${DARWIN_SDK_VERSION}.sdk.tar.xz "${DARWIN_SDK_URL}" ; \
     fi \
     && tools/get_dependencies.sh \
-    && yes "" | SDK_VERSION="${DARWIN_SDK_VERSION}" OSX_VERSION_MIN=10.5 ./build.sh \
+    && yes "" | SDK_VERSION="${DARWIN_SDK_VERSION}" OSX_VERSION_MIN=${MACOSX_DEPLOYMENT_TARGET} ./build.sh \
     && mv target /usr/osxcross \
-    && mkdir /usr/osxcross/tools \
-    && cp -av tools/osxcross-macports /usr/osxcross/tools \
-    && rm -f /usr/osxcross/bin/omp /usr/osxcross/bin/osxcross-mp /usr/osxcross/bin/osxcross-macports ; \
-    && ln -s ../tools/osxcross-macports /usr/osxcross/bin/osxcross-macports ; \
+    && rm -f /usr/osxcross/bin/omp /usr/osxcross/bin/osxcross-mp /usr/osxcross/bin/osxcross-macports \
+    && cp -av tools/osxcross-macports /usr/osxcross/bin/osxcross-macports \
     && cd /usr/osxcross \
     && rm -rf /tmp/osxcross \
     && rm -rf /usr/osxcross/SDK/MacOSX10.11.sdk/usr/share/man
 
-# Create symlinks for triples and set default CROSS_TRIPLE
-ENV CROSS_TRIPLE=x86_64-linux-gnu
+# todo: i386-linux-gnu
 
-COPY ./assets/osxcross-wrapper /usr/bin/osxcross-wrapper
-
+# Create symlinks for triples
 RUN set -x ; \
     export LINUX_TRIPLES= \
-    && export DARWIN_TRIPLES=x86_64h-apple-darwin${DARWIN_VERSION},x86_64-apple-darwin${DARWIN_VERSION},i386-apple-darwin${DARWIN_VERSION} \
+    && export DARWIN_TRIPLES=x86_64-apple-darwin${DARWIN_VERSION},i386-apple-darwin${DARWIN_VERSION} \
     && export WINDOWS_TRIPLES=i686-w64-mingw32,x86_64-w64-mingw32 \
-    && mkdir -p /usr/x86_64-linux-gnu && \
-    for triple in $(echo ${LINUX_TRIPLES} | tr "," " ") ; do \
+    && for triple in $(echo ${LINUX_TRIPLES} | tr "," " ") ; do \
         for bin in /etc/alternatives/$triple-* /usr/bin/$triple-* ; do \
             if [ ! -f /usr/$triple/bin/$(basename $bin | sed "s/$triple-//") ] ; then \
                 ln -s $bin /usr/$triple/bin/$(basename $bin | sed "s/$triple-//") ; \
             fi ; \
         done ; \
-    done && \
-    mkdir -p /usr/lib/apple/SDKs && \
-    for triple in $(echo ${DARWIN_TRIPLES} | tr "," " ") ; do \
+    done \
+    && mkdir -p /usr/lib/apple/SDKs \
+    && for triple in $(echo ${DARWIN_TRIPLES} | tr "," " ") ; do \
         mkdir -p /usr/$triple/bin ; \
         for bin in /usr/osxcross/bin/$triple-* ; do \
-            ln -s /usr/bin/osxcross-wrapper /usr/$triple/bin/$(basename $bin | sed "s/$triple-//") ; \
+            ln -s $bin /usr/$triple/bin/$(basename $bin | sed "s/$triple-//") ; \
         done && \
         rm -f /usr/$triple/bin/clang* ; \
-        ln -s cc /usr/$triple/bin/gcc ; \
-        ln -s /usr/osxcross/SDK/MacOSX${DARWIN_SDK_VERSION}.sdk/usr /usr/x86_64-linux-gnu/$triple ; \
+        rm -f /usr/lib/apple/SDKs/MacOSX${DARWIN_SDK_VERSION}.sdk ; \
         ln -s /usr/osxcross/SDK/MacOSX${DARWIN_SDK_VERSION}.sdk /usr/lib/apple/SDKs/MacOSX${DARWIN_SDK_VERSION}.sdk ; \
-    done ; \
-    for triple in $(echo ${WINDOWS_TRIPLES} | tr "," " ") ; do \
+    done \
+    && for triple in $(echo ${WINDOWS_TRIPLES} | tr "," " ") ; do \
         mkdir -p /usr/$triple/bin ; \
         for bin in /etc/alternatives/$triple-* /usr/bin/$triple-* ; do \
             if [ ! -f /usr/$triple/bin/$(basename $bin | sed "s/$triple-//") ] ; then \
                 ln -s $bin /usr/$triple/bin/$(basename $bin | sed "s/$triple-//") ; \
             fi ; \
         done ; \
-        ln -s gcc /usr/$triple/bin/cc ; \
-        ln -s /usr/$triple /usr/x86_64-linux-gnu/$triple ; \
     done \
-    && ln -s /usr/osxcross/tools/osxcross-macports /usr/bin/macports
+    && ln -s /usr/osxcross/bin/osxcross-macports /usr/bin/osxcross-macports \
+    && ln -s osxcross-macports /usr/bin/macports \
+    && ln -s /usr/osxcross/bin/osxcross-conf /usr/bin/osxcross-conf
 
 # we need to use default clang binary to avoid a bug in osxcross that recursively call himself
 # with more and more parameters
 
-# Image metadata
-ENTRYPOINT ["/usr/bin/crossbuild"]
-CMD ["/bin/bash"]
-WORKDIR /workdir
-COPY ./assets/crossbuild /usr/bin/crossbuild
+# install dependencies for return-to-the-roots (osx)
+# RUN set -x ; \
+#    export MACOSX_DEPLOYMENT_TARGET=10.6 \
+#    && export UNATTENDED=1 \
+#    && export OSXCROSS_TARGET_DIR=/usr/osxcross \
+#    && PATH=/usr/osxcross/bin:$PATH /usr/osxcross/bin/osxcross-macports -v install boost libsdl libsdl_mixer miniupnpc
+# do not work
 
-# install dependencies for return-to-the-roots
-RUN set -x ; \
-    export DEBIAN_FRONTEND=noninteractive \
-    && apt-get install -y -q \
-        g++-4.8 \
-        cmake \
-        libboost1.55-all-dev \
-        libsdl1.2-dev \
-        libsdl-mixer1.2-dev \
-        libcurl4-openssl-dev \
-        libbz2-dev \
-        libminiupnpc-dev \
-        liblua5.2-dev \
-        libboost1.55-all \
-        libsdl1.2debian \
-        libsdl-mixer1.2 \
-        bzip2 \
-        liblua5.2 \
-        libboost1.55-all:i386 \
-        libsdl1.2debian:i386 \
-        libsdl-mixer1.2:i386 \
-        liblua5.2:i386 \
-        gcc-multilib \
-        g++-multilib \
-        ccache \
-    && apt-get clean
+# Image metadata
+ENTRYPOINT [ "/bin/bash" ]
+WORKDIR /workdir
 
 ENV CCACHE_DIR=/workdir/.ccache
+ENV PATH=/usr/local/sbin:/usr/sbin:/sbin:/usr/local/bin:/usr/bin:/bin:/usr/local/games:/usr/games:/usr/osxcross/bin
+
