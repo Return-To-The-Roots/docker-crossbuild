@@ -9,7 +9,7 @@ RUN set -x ; \
     export DEBIAN_FRONTEND=noninteractive \
     && apt-get clean \
     && apt-get update \
-    && apt-get dist-upgrade \
+    && apt-get dist-upgrade -y \
     && apt-get clean
 
 # Install deps
